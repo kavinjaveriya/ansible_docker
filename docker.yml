@@ -1,0 +1,87 @@
+- hosts: all
+  tasks:
+          
+  - name: AppStream repo configuration
+    yum_repository:
+      baseurl: "/run/media/root/RHEL-8-0-0-BaseOS-x86_64/AppStream"
+      name: "dvd1"
+      description: "AppStream software"
+      gpgcheck: no
+
+  - name: BaseOS repo configuration
+    yum_repository:
+      baseurl: "/run/media/root/RHEL-8-0-0-BaseOS-x86_64/BaseOS"
+      name: "dvd2"
+      description: "BaseOS software"
+      gpgcheck: no
+
+  - name: Docker-ce repo configuration
+    yum_repository:
+      baseurl: "https://download.docker.com/linux/centos/7/x86_64/stable/"
+      name: "docker-ce"
+      description: "docker repo"
+      gpgcheck: no
+  
+  - name: install docker-ce software
+    package:
+      name: "docker-ce-18.09.0-3.el7.x86_64"
+      state: present
+  
+  - name: docker service start
+    service:
+      name: "docker"
+      state: started     
+ 
+  - name: install docker sdk
+    pip:
+      name: "docker"
+   
+  - name: pull docker image from docker hub
+    docker_image:
+      name: "httpd"
+      source: pull
+
+  - name: create a dir in host machine for web pages 
+    file:
+      state: directory
+      path: "/web_pages"
+
+  - copy:
+      src: "/help/web.html"
+      dest: "/web_pages/"
+  
+  - name: create a dir in host machine for configuration file of httpd
+    file:
+      state: directory
+      path: "/conf_file"
+ 
+  - copy:
+      src:  "/root/httpd.conf"
+      dest: "/conf_file/"
+ 
+  - name: start docker container
+    docker_container:
+      name: "web"
+      image: "httpd"
+      state: started
+      tty: yes
+      exposed_ports: 80
+      ports: "8080:80"
+      volumes: "/web_pages/:/var/www/html/"
+  
+  - name: copy configuration file of httpd
+    shell: docker cp /conf_file/httpd.conf web:/usr/local/apache2/conf/httpd.conf 
+ 
+  - name: after change conf file  of httpd we have to restart docker
+    service:
+      name: "docker"
+      state: restarted
+       
+  - name: restart docker container again
+    shell: docker start web
+      
+  - name: stop firewall
+    service: 
+      name: firewalld
+      state: stopped
+      enabled: false
